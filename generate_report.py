@@ -118,6 +118,7 @@ def build_report():
         ("University", "Morgan State University"),
         ("Date", "March 2026"),
         ("Language", "Python 3.13 with Rich terminal UI"),
+        ("GitHub", "github.com/theaayushstha1/transit"),
     ]
     for label, value in info:
         pdf.set_font("Helvetica", "B", 11)
@@ -619,6 +620,43 @@ def build_report():
         "dashboard bridges theory and practice by displaying Big-O complexity alongside measured "
         "benchmarks, reinforcing that algorithmic analysis predicts real-world behavior."
     )
+
+    # ==================== SCREENSHOTS APPENDIX ====================
+    screenshots_dir = "screenshots/png"
+    demos = [
+        ("01_menu", "Main Menu"),
+        ("02_network_map", "Network Map - Real Baltimore MTA Data"),
+        ("03_station_table", "All 37 Stations"),
+        ("04_dijkstra", "Dijkstra's Shortest Path - Cross-Line Routing"),
+        ("05_dfs_vs_bfs", "DFS vs BFS Comparison"),
+        ("06_sorting", "Merge Sort vs Quick Sort"),
+        ("07_search", "Binary Search vs Linear Search"),
+        ("08_passenger", "Passenger Boarding Simulation (Queue/FIFO)"),
+        ("09_undo", "Undo System (Stack/LIFO)"),
+        ("10_dashboard", "Performance Dashboard - Theory + Benchmarks"),
+    ]
+
+    import os
+    if os.path.isdir(screenshots_dir):
+        pdf.add_page()
+        pdf.section_title("Appendix: Screenshots")
+        pdf.body_text(
+            "The following screenshots show actual terminal output from the simulator, "
+            "captured using Rich's SVG export and converted to PNG."
+        )
+
+        for filename, title in demos:
+            png_path = f"{screenshots_dir}/{filename}.png"
+            if not os.path.isfile(png_path):
+                continue
+
+            pdf.add_page()
+            pdf.subsection_title(title)
+            img_width = pdf.w - pdf.l_margin - pdf.r_margin
+            try:
+                pdf.image(png_path, x=pdf.l_margin, w=img_width)
+            except Exception:
+                pdf.body_text(f"[Image not available: {filename}]")
 
     # ==================== REFERENCES ====================
     pdf.ln(8)

@@ -29,19 +29,21 @@ class Report(FPDF):
         self.cell(0, 8, f"Page {self.page_no()}/{{nb}}", align="C")
 
     def section_title(self, title):
+        self.ln(3)  # space above section
         self.set_font("Helvetica", "B", 12)
         self.set_text_color(0, 51, 102)
         self.cell(0, 8, title, new_x="LMARGIN", new_y="NEXT")
         self.set_draw_color(0, 51, 102)
         self.line(self.l_margin, self.get_y(), self.w - self.r_margin, self.get_y())
-        self.ln(2.5)
+        self.ln(3)
         self.set_text_color(0, 0, 0)
 
     def subsection_title(self, title):
+        self.ln(2)  # space above subsection
         self.set_font("Helvetica", "B", 9.5)
         self.set_text_color(51, 51, 51)
         self.cell(0, 6, title, new_x="LMARGIN", new_y="NEXT")
-        self.ln(1)
+        self.ln(1.5)
         self.set_text_color(0, 0, 0)
 
     def body_text(self, text):
@@ -54,7 +56,7 @@ class Report(FPDF):
         self.set_text_color(80, 80, 80)
         self.cell(0, 4, text, align="C", new_x="LMARGIN", new_y="NEXT")
         self.set_text_color(0, 0, 0)
-        self.ln(2)
+        self.ln(4)
 
     def inline_image(self, filename, caption, width_pct=0.85):
         """Place a screenshot inline with a figure caption. width_pct = fraction of usable width."""
@@ -65,18 +67,31 @@ class Report(FPDF):
         img_w = usable_w * width_pct
         x_offset = (usable_w - img_w) / 2 + self.l_margin
         # Check if we need a page break (estimate image height)
-        est_h = img_w * 0.48 + 8
+        est_h = img_w * 0.48 + 14
         if self.get_y() + est_h > self.h - 15:
             self.add_page()
+        self.ln(3)  # breathing room above image
         try:
             self.image(png_path, x=x_offset, w=img_w)
         except Exception:
             pass
+        self.ln(1)
         self.figure_caption(fig(caption))
 
     def inline_image_half(self, filename, caption, width_pct=0.55):
         """Smaller inline screenshot."""
         self.inline_image(filename, caption, width_pct)
+
+    def linked_text(self, url, display_text=None):
+        """Render a clickable blue underlined link."""
+        if display_text is None:
+            display_text = url
+        self.set_text_color(0, 51, 153)
+        self.set_font("Helvetica", "U", self.font_size_pt)
+        w = self.get_string_width(display_text)
+        self.cell(w, self.font_size_pt * 0.5, display_text, link=f"https://{url}")
+        self.set_font("Helvetica", "", self.font_size_pt)
+        self.set_text_color(0, 0, 0)
 
     def code_block(self, code):
         self.set_font("Courier", "", 7)
@@ -154,13 +169,22 @@ def build_report():
         ("University", "Morgan State University"),
         ("Date", "March 2026"),
         ("Language", "Python 3.13 with Rich terminal UI"),
-        ("GitHub", "github.com/theaayushstha1/transit"),
     ]
     for label, value in info:
         pdf.set_font("Helvetica", "B", 10)
         pdf.cell(50, 6.5, f"{label}:", align="R")
         pdf.set_font("Helvetica", "", 10)
         pdf.cell(0, 6.5, f"  {value}", new_x="LMARGIN", new_y="NEXT")
+    # GitHub link highlighted
+    pdf.set_font("Helvetica", "B", 10)
+    pdf.cell(50, 6.5, "GitHub:", align="R")
+    pdf.cell(2, 6.5, " ")
+    pdf.set_font("Helvetica", "U", 10)
+    pdf.set_text_color(0, 51, 153)
+    pdf.cell(0, 6.5, "github.com/theaayushstha1/transit",
+             link="https://github.com/theaayushstha1/transit",
+             new_x="LMARGIN", new_y="NEXT")
+    pdf.set_text_color(0, 0, 0)
     pdf.ln(8)
     pdf.set_draw_color(0, 51, 102)
     pdf.line(50, pdf.get_y(), pdf.w - 50, pdf.get_y())
@@ -177,8 +201,36 @@ def build_report():
     pdf.set_text_color(0, 0, 0)
     pdf.ln(3)
 
+    # Table of Contents
+    pdf.ln(4)
+    pdf.set_font("Helvetica", "B", 11)
+    pdf.set_text_color(0, 51, 102)
+    pdf.cell(0, 7, "Table of Contents", new_x="LMARGIN", new_y="NEXT")
+    pdf.set_draw_color(0, 51, 102)
+    pdf.line(pdf.l_margin, pdf.get_y(), pdf.w - pdf.r_margin, pdf.get_y())
+    pdf.ln(3)
+    pdf.set_text_color(0, 0, 0)
+
+    toc_items = [
+        ("1.", "System Design & Architecture"),
+        ("2.", "Data Structures"),
+        ("3.", "Algorithm Implementations"),
+        ("4.", "Algorithm Complexity Analysis"),
+        ("5.", "Conclusion"),
+        ("6.", "Future Enhancements"),
+        ("", "References"),
+    ]
+    for num, title in toc_items:
+        pdf.set_font("Helvetica", "B" if num else "", 9)
+        if num:
+            pdf.cell(8, 5, num)
+        else:
+            pdf.cell(8, 5, "")
+        pdf.cell(0, 5, title, new_x="LMARGIN", new_y="NEXT")
+    pdf.ln(2)
+
     # Main menu screenshot on title page
-    pdf.inline_image("01_menu", "Interactive main menu with 10 options covering all features", 0.70)
+    pdf.inline_image("01_menu", "Interactive main menu with 10 options covering all features", 0.65)
 
     # ==================== SYSTEM DESIGN (flows from ~page 2) ====================
     pdf.add_page()
@@ -600,17 +652,32 @@ def build_report():
     pdf.section_title("References")
 
     refs = [
-        "Cormen, T. H., Leiserson, C. E., Rivest, R. L., & Stein, C. (2022). "
+        "[1]  Cormen, T. H., Leiserson, C. E., Rivest, R. L., & Stein, C. (2022). "
         "Introduction to Algorithms (4th ed.). MIT Press.",
-        "Baltimore MTA. Maryland Transit Administration System Map. mta.maryland.gov",
-        "Python Software Foundation. collections.deque, heapq documentation. docs.python.org",
-        "Will McGugan. Rich: Python library for rich text in terminal. github.com/Textualize/rich",
     ]
-    pdf.set_font("Helvetica", "", 8)
-    for i, ref in enumerate(refs, 1):
-        pdf.cell(7, 4.5, f"[{i}]")
-        pdf.multi_cell(0, 4.5, ref)
-        pdf.ln(0.5)
+    pdf.set_font("Helvetica", "", 8.5)
+    for ref in refs:
+        pdf.multi_cell(0, 5, ref)
+        pdf.ln(1.5)
+
+    # References with links - render text then link on next line
+    linked_refs = [
+        ("[2]  Baltimore MTA. Maryland Transit Administration System Map.",
+         "mta.maryland.gov", "https://mta.maryland.gov"),
+        ("[3]  Python Software Foundation. collections.deque, heapq documentation.",
+         "docs.python.org", "https://docs.python.org"),
+        ("[4]  Will McGugan. Rich: Python library for rich text in terminal.",
+         "github.com/Textualize/rich", "https://github.com/Textualize/rich"),
+    ]
+    for text, link_label, link_url in linked_refs:
+        pdf.set_font("Helvetica", "", 8.5)
+        pdf.multi_cell(0, 5, text)
+        pdf.set_x(pdf.l_margin + 12)
+        pdf.set_font("Helvetica", "U", 8.5)
+        pdf.set_text_color(0, 51, 153)
+        pdf.cell(0, 5, link_label, link=link_url, new_x="LMARGIN", new_y="NEXT")
+        pdf.set_text_color(0, 0, 0)
+        pdf.ln(1.5)
 
     # Save
     output_path = "report.pdf"

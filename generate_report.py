@@ -615,6 +615,7 @@ def build_report():
     )
 
     # ==================== FUTURE ENHANCEMENTS ====================
+    pdf.add_page()
     pdf.section_title("6. Future Enhancements")
 
     enhancements = [

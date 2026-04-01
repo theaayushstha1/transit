@@ -3,7 +3,11 @@ Generate the 8-10 page PDF report for Baltimore MTA Transit Simulator.
 COSC 320 - Algorithm Design
 """
 
+import os
 from fpdf import FPDF
+
+SCREENSHOTS_DIR = "screenshots/png"
+
 
 class Report(FPDF):
     def header(self):
@@ -18,66 +22,61 @@ class Report(FPDF):
         self.cell(0, 10, f"Page {self.page_no()}/{{nb}}", align="C")
 
     def section_title(self, title):
-        self.set_font("Helvetica", "B", 14)
+        self.set_font("Helvetica", "B", 13)
         self.set_text_color(0, 51, 102)
-        self.cell(0, 10, title, new_x="LMARGIN", new_y="NEXT")
+        self.cell(0, 9, title, new_x="LMARGIN", new_y="NEXT")
         self.set_draw_color(0, 51, 102)
         self.line(self.l_margin, self.get_y(), self.w - self.r_margin, self.get_y())
-        self.ln(4)
+        self.ln(3)
         self.set_text_color(0, 0, 0)
 
     def subsection_title(self, title):
-        self.set_font("Helvetica", "B", 11)
+        self.set_font("Helvetica", "B", 10)
         self.set_text_color(51, 51, 51)
-        self.cell(0, 8, title, new_x="LMARGIN", new_y="NEXT")
-        self.ln(2)
+        self.cell(0, 7, title, new_x="LMARGIN", new_y="NEXT")
+        self.ln(1)
         self.set_text_color(0, 0, 0)
 
     def body_text(self, text):
-        self.set_font("Helvetica", "", 10)
-        self.multi_cell(0, 5.5, text)
-        self.ln(2)
+        self.set_font("Helvetica", "", 9)
+        self.multi_cell(0, 4.8, text)
+        self.ln(1.5)
 
     def code_block(self, code):
-        self.set_font("Courier", "", 8.5)
+        self.set_font("Courier", "", 7.5)
         self.set_fill_color(240, 240, 240)
         self.set_draw_color(200, 200, 200)
-        x = self.get_x()
         y = self.get_y()
-        # Calculate height
         lines = code.strip().split("\n")
-        block_height = len(lines) * 4.5 + 4
-        if y + block_height > self.h - 25:
+        block_height = len(lines) * 3.8 + 3
+        if y + block_height > self.h - 22:
             self.add_page()
             y = self.get_y()
         self.rect(self.l_margin, y, self.w - self.l_margin - self.r_margin, block_height, "FD")
-        self.set_xy(self.l_margin + 3, y + 2)
+        self.set_xy(self.l_margin + 2, y + 1.5)
         for line in lines:
-            self.cell(0, 4.5, line)
-            self.ln(4.5)
-        self.ln(4)
-        self.set_font("Helvetica", "", 10)
+            self.cell(0, 3.8, line)
+            self.ln(3.8)
+        self.ln(3)
+        self.set_font("Helvetica", "", 9)
 
     def add_table(self, headers, rows, col_widths=None):
         if col_widths is None:
             available = self.w - self.l_margin - self.r_margin
             col_widths = [available / len(headers)] * len(headers)
 
-        # Check if table fits on current page
-        needed = 7 * (len(rows) + 1) + 4
-        if self.get_y() + needed > self.h - 25:
+        needed = 6 * (len(rows) + 1) + 3
+        if self.get_y() + needed > self.h - 22:
             self.add_page()
 
-        # Header
-        self.set_font("Helvetica", "B", 9)
+        self.set_font("Helvetica", "B", 8)
         self.set_fill_color(0, 51, 102)
         self.set_text_color(255, 255, 255)
         for i, h in enumerate(headers):
-            self.cell(col_widths[i], 7, h, border=1, fill=True, align="C")
+            self.cell(col_widths[i], 6, h, border=1, fill=True, align="C")
         self.ln()
 
-        # Rows
-        self.set_font("Helvetica", "", 9)
+        self.set_font("Helvetica", "", 8)
         self.set_text_color(0, 0, 0)
         fill = False
         for row in rows:
@@ -87,29 +86,65 @@ class Report(FPDF):
                 self.set_fill_color(255, 255, 255)
             for i, cell in enumerate(row):
                 align = "L" if i == 0 else "C"
-                self.cell(col_widths[i], 7, str(cell), border=1, fill=True, align=align)
+                self.cell(col_widths[i], 6, str(cell), border=1, fill=True, align=align)
             self.ln()
             fill = not fill
-        self.ln(4)
+        self.ln(3)
+
+    def screenshot_grid(self, images, title=None):
+        """Place 2-4 screenshots in a grid on the current page."""
+        if title:
+            self.section_title(title)
+
+        usable_w = self.w - self.l_margin - self.r_margin
+        gap = 4
+        img_w = (usable_w - gap) / 2
+
+        for idx, (path, caption) in enumerate(images):
+            col = idx % 2
+            if idx > 0 and col == 0:
+                self.ln(2)
+
+            x = self.l_margin + col * (img_w + gap)
+            y = self.get_y()
+
+            # Caption
+            self.set_xy(x, y)
+            self.set_font("Helvetica", "B", 8)
+            self.set_text_color(0, 51, 102)
+            self.cell(img_w, 5, caption, align="C")
+            self.set_text_color(0, 0, 0)
+
+            # Image
+            try:
+                self.image(path, x=x, y=y + 5, w=img_w)
+            except Exception:
+                self.set_xy(x, y + 5)
+                self.set_font("Helvetica", "I", 8)
+                self.cell(img_w, 10, f"[{caption}]", align="C")
+
+            if col == 1:
+                # Move below the taller image (estimate)
+                self.set_y(y + img_w * 0.55 + 8)
 
 
 def build_report():
     pdf = Report()
     pdf.alias_nb_pages()
-    pdf.set_auto_page_break(auto=True, margin=20)
+    pdf.set_auto_page_break(auto=True, margin=18)
     pdf.add_page()
 
-    # ==================== TITLE PAGE ====================
-    pdf.ln(30)
+    # ==================== PAGE 1: TITLE ====================
+    pdf.ln(25)
     pdf.set_font("Helvetica", "B", 26)
     pdf.set_text_color(0, 51, 102)
     pdf.cell(0, 12, "Baltimore MTA Transit Simulator", align="C", new_x="LMARGIN", new_y="NEXT")
-    pdf.ln(6)
+    pdf.ln(5)
     pdf.set_font("Helvetica", "", 14)
     pdf.set_text_color(80, 80, 80)
     pdf.cell(0, 8, "A Real-Data Transit Network Simulator", align="C", new_x="LMARGIN", new_y="NEXT")
     pdf.cell(0, 8, "Demonstrating Core Data Structures & Algorithms", align="C", new_x="LMARGIN", new_y="NEXT")
-    pdf.ln(20)
+    pdf.ln(15)
     pdf.set_font("Helvetica", "", 12)
     pdf.set_text_color(0, 0, 0)
     info = [
@@ -125,12 +160,12 @@ def build_report():
         pdf.cell(50, 7, f"{label}:", align="R")
         pdf.set_font("Helvetica", "", 11)
         pdf.cell(0, 7, f"  {value}", new_x="LMARGIN", new_y="NEXT")
-    pdf.ln(20)
+    pdf.ln(15)
 
     pdf.set_draw_color(0, 51, 102)
     pdf.line(50, pdf.get_y(), pdf.w - 50, pdf.get_y())
-    pdf.ln(8)
-    pdf.set_font("Helvetica", "I", 10)
+    pdf.ln(6)
+    pdf.set_font("Helvetica", "I", 9.5)
     pdf.set_text_color(80, 80, 80)
     pdf.multi_cell(0, 5, (
         "This project implements a transit network simulator using real Baltimore MTA data "
@@ -139,6 +174,13 @@ def build_report():
         "searching (Binary, Linear), and queue/stack data structures through an "
         "interactive terminal interface with animated algorithm visualizations."
     ), align="C")
+
+    # Screenshot: Main Menu below the abstract
+    menu_png = f"{SCREENSHOTS_DIR}/01_menu.png"
+    if os.path.isfile(menu_png):
+        pdf.ln(4)
+        img_w = pdf.w - pdf.l_margin - pdf.r_margin - 40
+        pdf.image(menu_png, x=pdf.l_margin + 20, w=img_w)
 
     # ==================== PAGE 2: SYSTEM DESIGN ====================
     pdf.add_page()
@@ -177,14 +219,14 @@ def build_report():
     pdf.add_table(
         ["Decision", "Choice", "Reasoning"],
         [
-            ["Graph repr.", "Adjacency list (dict of dicts)", "O(1) edge lookup, natural for sparse graphs"],
+            ["Graph repr.", "Adjacency list (dict of dicts)", "O(1) edge lookup, sparse transit graph"],
             ["Edge weights", "Travel time in minutes", "Enables Dijkstra, maps to real MTA data"],
             ["Shared stations", "Dedup by name", "Lexington Market on both lines = 1 node"],
             ["UI library", "Python Rich", "Colored tables, live animations, zero web deps"],
-            ["Undo pattern", "Command pattern + inverse", "Clean stack demo, _raw_ methods skip undo"],
-            ["Sorting key", "Station capacity", "Numeric field with varied values for comparison"],
+            ["Undo pattern", "Command + inverse", "_raw_ methods skip undo stack"],
+            ["Sorting key", "Station capacity", "Numeric field with varied values"],
         ],
-        col_widths=[35, 55, 95],
+        col_widths=[32, 55, 98],
     )
 
     # ==================== PAGE 3: DATA STRUCTURES ====================
@@ -193,10 +235,9 @@ def build_report():
 
     pdf.subsection_title("2.1 Graph (Adjacency List)")
     pdf.body_text(
-        "The transit network is represented as a weighted undirected graph using an adjacency list. "
-        "The implementation uses a dictionary of dictionaries: adj_list[station_id] maps to "
-        "{neighbor_id: weight_in_minutes}. This provides O(1) edge lookup and insertion, "
-        "which is optimal for the sparse graph topology of a transit network (37 nodes, 36 edges)."
+        "The transit network is a weighted undirected graph using an adjacency list (dict of dicts). "
+        "adj_list[station_id] maps to {neighbor_id: weight_in_minutes}. This provides O(1) edge "
+        "lookup and insertion, optimal for the sparse topology (37 nodes, 36 edges)."
     )
     pdf.code_block(
         "class TransitNetwork:\n"
@@ -206,32 +247,26 @@ def build_report():
         "        self.undo_stack: list = []\n"
         "\n"
         "    def add_connection(self, id1, id2, weight):\n"
-        "        self.adj_list[id1][id2] = weight  # undirected:\n"
+        "        self.adj_list[id1][id2] = weight  # undirected\n"
         "        self.adj_list[id2][id1] = weight  # store both"
     )
 
     pdf.subsection_title("2.2 Queue (FIFO - Passenger Boarding)")
     pdf.body_text(
         "Each station maintains a passenger queue using collections.deque. Passengers are "
-        "enqueued (append) when generated and dequeued (popleft) during boarding, demonstrating "
-        "FIFO behavior. The deque provides O(1) for both operations, unlike a list which would "
-        "be O(n) for popleft due to element shifting."
+        "enqueued (append) and dequeued (popleft) during boarding in FIFO order. "
+        "deque provides O(1) for both operations vs O(n) for list.pop(0)."
     )
     pdf.code_block(
-        "# Enqueue: passenger joins the line\n"
-        "station.passenger_queue.append(passenger)\n"
-        "\n"
-        "# Dequeue: board in FIFO order\n"
-        "while queue and len(boarded) < capacity:\n"
-        "    passenger = station.passenger_queue.popleft()"
+        "station.passenger_queue.append(passenger)       # enqueue\n"
+        "passenger = station.passenger_queue.popleft()    # dequeue FIFO"
     )
 
     pdf.subsection_title("2.3 Stack (LIFO - Undo System)")
     pdf.body_text(
         "The undo system uses a Python list as a stack (append/pop). Every graph mutation "
-        "(add station, remove station, add/remove connection) pushes its inverse action onto "
-        "the stack. The UndoManager pops actions and applies the inverse using internal _raw_ "
-        "methods that bypass the undo stack to prevent infinite loops."
+        "pushes its inverse action. The UndoManager pops and applies the inverse using "
+        "internal _raw_ methods that bypass the undo stack to prevent infinite loops."
     )
     pdf.code_block(
         "# Public method pushes to undo stack\n"
@@ -239,60 +274,62 @@ def build_report():
         "    self._raw_add_station(station)\n"
         "    self.undo_stack.append({\"action\": \"add_station\", ...})\n"
         "\n"
-        "# Undo pops and applies inverse via _raw_ method\n"
+        "# Undo pops and applies inverse\n"
         "def undo(self):\n"
         "    action = self.network.undo_stack.pop()\n"
         "    if action[\"action\"] == \"add_station\":\n"
         "        self.network._raw_remove_station(action[\"station\"].id)"
     )
 
-    pdf.subsection_title("2.4 Priority Queue (Min-Heap - Dijkstra)")
+    pdf.subsection_title("2.4 Priority Queue (Min-Heap)")
     pdf.body_text(
-        "Dijkstra's algorithm uses Python's heapq module as a min-heap priority queue. "
-        "Each entry is a (distance, station_id) tuple. heappush and heappop both operate "
-        "in O(log n) time, giving Dijkstra's algorithm its O((V+E) log V) time complexity."
+        "Dijkstra's uses Python's heapq as a min-heap priority queue. Each entry is a "
+        "(distance, station_id) tuple. heappush/heappop operate in O(log n), giving "
+        "Dijkstra O((V+E) log V) time complexity."
     )
 
-    # ==================== PAGE 4-5: ALGORITHMS ====================
+    # Network map screenshot
+    net_png = f"{SCREENSHOTS_DIR}/02_network_map.png"
+    if os.path.isfile(net_png):
+        pdf.ln(2)
+        pdf.set_font("Helvetica", "I", 8)
+        pdf.set_text_color(0, 51, 102)
+        pdf.cell(0, 4, "Network Map - 37 Baltimore MTA Stations", align="C", new_x="LMARGIN", new_y="NEXT")
+        pdf.set_text_color(0, 0, 0)
+        img_w = pdf.w - pdf.l_margin - pdf.r_margin - 20
+        pdf.image(net_png, x=pdf.l_margin + 10, w=img_w)
+
+    # ==================== PAGE 4: ALGORITHMS ====================
     pdf.add_page()
     pdf.section_title("3. Algorithm Implementations")
 
-    pdf.subsection_title("3.1 Depth-First Search (DFS)")
+    pdf.subsection_title("3.1 Depth-First Search (DFS) - Recursive")
     pdf.body_text(
-        "DFS is implemented recursively. It explores as deeply as possible along each branch "
-        "before backtracking. The algorithm maintains a visited set to avoid cycles and a path "
-        "list that grows/shrinks via append/pop as it explores/backtracks. It also records the "
-        "visit order for the animated visualization."
+        "DFS explores as deeply as possible along each branch before backtracking. Uses "
+        "recursion (call stack), a visited set, and a path list that grows/shrinks via append/pop."
     )
     pdf.code_block(
         "def _dfs_helper(current: int) -> bool:\n"
         "    visited.add(current)\n"
-        "    visit_order.append(current)\n"
         "    path.append(current)\n"
-        "    if current == goal_id:\n"
-        "        return True\n"
+        "    if current == goal_id: return True\n"
         "    for neighbor_id, _ in sorted(network.get_neighbors(current)):\n"
         "        if neighbor_id not in visited:\n"
-        "            if _dfs_helper(neighbor_id):\n"
-        "                return True\n"
+        "            if _dfs_helper(neighbor_id): return True\n"
         "    path.pop()  # backtrack\n"
         "    return False"
     )
 
-    pdf.subsection_title("3.2 Breadth-First Search (BFS)")
+    pdf.subsection_title("3.2 Breadth-First Search (BFS) - Queue")
     pdf.body_text(
-        "BFS uses a collections.deque as a queue. It explores all neighbors at the current "
-        "depth before moving to the next level. BFS guarantees the shortest path in an "
-        "unweighted graph (fewest edges). Each queue entry stores the full path to that node "
-        "for easy path reconstruction."
+        "BFS uses collections.deque as a queue, exploring all neighbors at current depth "
+        "before the next level. Guarantees shortest path in unweighted graphs."
     )
     pdf.code_block(
-        "visited = {start_id}\n"
         "queue = deque([(start_id, [start_id])])\n"
         "while queue:\n"
         "    current, path = queue.popleft()\n"
-        "    if current == goal_id:\n"
-        "        return path\n"
+        "    if current == goal_id: return path\n"
         "    for neighbor_id, _ in sorted(network.get_neighbors(current)):\n"
         "        if neighbor_id not in visited:\n"
         "            visited.add(neighbor_id)\n"
@@ -301,11 +338,8 @@ def build_report():
 
     pdf.subsection_title("3.3 DFS vs BFS Comparison")
     pdf.body_text(
-        "When finding a route from Hunt Valley to Johns Hopkins Hospital, DFS visited all 37 "
-        "stations (exploring every branch before finding the goal), while BFS visited only 23 "
-        "(expanding level-by-level and stopping as soon as the goal is reached). Both found a "
-        "17-station path in this case because the graph is largely linear. In a denser graph, "
-        "BFS would find the shorter path while DFS might find a longer one."
+        "Route from Hunt Valley to Johns Hopkins Hospital: DFS visited all 37 stations "
+        "(exhaustive depth-first), BFS visited only 23 (level-by-level, stops early)."
     )
     pdf.add_table(
         ["Metric", "DFS (Recursive)", "BFS (Queue)"],
@@ -316,15 +350,14 @@ def build_report():
             ["Time Complexity", "O(V + E)", "O(V + E)"],
             ["Space Complexity", "O(V) recursion stack", "O(V) queue"],
         ],
-        col_widths=[55, 65, 65],
+        col_widths=[50, 67, 68],
     )
 
-    pdf.subsection_title("3.4 Dijkstra's Shortest Path Algorithm")
+    pdf.subsection_title("3.4 Dijkstra's Shortest Path")
     pdf.body_text(
-        "Dijkstra's algorithm finds the shortest weighted path using a min-heap priority queue. "
-        "It greedily selects the unvisited node with the smallest known distance, then relaxes "
-        "its neighbors. The path from Hunt Valley to Johns Hopkins Hospital traverses 17 stations "
-        "in 37 minutes, transferring from Light Rail to Metro at Lexington Market."
+        "Finds the shortest weighted path using a min-heap priority queue. Greedily selects "
+        "the unvisited node with smallest known distance, then relaxes neighbors. Hunt Valley "
+        "to Johns Hopkins Hospital: 17 stations, 37 minutes, transfers at Lexington Market."
     )
     pdf.code_block(
         "while pq:\n"
@@ -340,19 +373,16 @@ def build_report():
         "            heapq.heappush(pq, (new_dist, neighbor_id))"
     )
 
-    # ==================== SORTING ====================
+    # ==================== PAGE 5: SORTING + SEARCHING ====================
     pdf.add_page()
     pdf.subsection_title("3.5 Merge Sort")
     pdf.body_text(
-        "Merge Sort divides the array in half recursively, then merges the sorted halves. "
-        "It is stable (preserves relative order of equal elements) and always runs in "
-        "O(n log n) time, but requires O(n) extra space for the merge step. "
-        "On our 37 stations sorted by capacity, Merge Sort used 140 comparisons."
+        "Divides array in half recursively, merges sorted halves. Stable, always O(n log n), "
+        "but O(n) extra space. On 37 stations by capacity: 140 comparisons."
     )
     pdf.code_block(
         "def _merge(left, right):\n"
-        "    result = []\n"
-        "    i = j = 0\n"
+        "    result, i, j = [], 0, 0\n"
         "    while i < len(left) and j < len(right):\n"
         "        comparisons[0] += 1\n"
         "        if key(left[i]) <= key(right[j]):\n"
@@ -366,11 +396,8 @@ def build_report():
 
     pdf.subsection_title("3.6 Quick Sort")
     pdf.body_text(
-        "Quick Sort selects a pivot (last element), partitions the array so elements smaller "
-        "than the pivot go left and larger go right, then recurses on both halves. It is "
-        "in-place (O(log n) stack space) but unstable and has O(n^2) worst-case on already "
-        "sorted input. On our 37 stations, Quick Sort used 188 comparisons (more than Merge "
-        "Sort's 140, as expected for this data distribution)."
+        "Selects pivot (last element), partitions in-place, recurses. O(n log n) avg, "
+        "O(n^2) worst. Unstable but in-place (O(log n) stack). 188 comparisons on 37 stations."
     )
 
     pdf.subsection_title("3.7 Sorting Comparison")
@@ -384,40 +411,35 @@ def build_report():
             ["Stable?", "Yes", "No"],
             ["In-place?", "No", "Yes"],
         ],
-        col_widths=[55, 65, 65],
+        col_widths=[50, 67, 68],
     )
-
     pdf.body_text(
-        "Quick Sort was faster in practice despite more comparisons because it is in-place "
-        "(better cache locality, no memory allocation for merge buffers). Merge Sort's "
-        "advantage is guaranteed O(n log n) worst case and stability."
+        "Quick Sort was faster in practice despite more comparisons due to in-place "
+        "operations and better cache locality. Merge Sort guarantees O(n log n) worst case."
     )
 
     pdf.subsection_title("3.8 Binary Search vs Linear Search")
     pdf.body_text(
-        "Binary Search requires a sorted array and eliminates half the remaining elements "
-        "each step (O(log n)). Linear Search scans sequentially (O(n)). When searching for "
-        "capacity 200 among 37 sorted stations, Binary Search found it in 3 comparisons "
-        "while Linear Search needed 20."
+        "Binary Search eliminates half per step (O(log n), requires sorted input). "
+        "Linear Search scans sequentially (O(n)). Searching capacity=200 among 37 stations:"
     )
     pdf.add_table(
         ["Metric", "Binary Search", "Linear Search"],
         [
-            ["Comparisons (target=200)", "3", "20"],
+            ["Comparisons", "3", "20"],
             ["Time Complexity", "O(log n)", "O(n)"],
             ["Requires Sorted?", "Yes", "No"],
         ],
-        col_widths=[55, 65, 65],
+        col_widths=[50, 67, 68],
     )
 
-    # ==================== COMPLEXITY ====================
-    pdf.ln(4)
+    # ==================== PAGE 6: BIG-O ANALYSIS ====================
+    pdf.add_page()
     pdf.section_title("4. Algorithm Complexity Analysis")
 
     pdf.body_text(
-        "The following table summarizes the theoretical time and space complexity of every "
-        "operation implemented in the simulator. These are verified empirically by the "
-        "performance dashboard, which runs live benchmarks."
+        "Complete time and space complexity for every operation in the simulator, "
+        "verified empirically by the performance dashboard."
     )
 
     pdf.add_table(
@@ -442,9 +464,8 @@ def build_report():
 
     pdf.subsection_title("4.1 Empirical Benchmarks")
     pdf.body_text(
-        "All algorithms were benchmarked on the full 37-station, 36-edge Baltimore MTA network. "
-        "Timings use time.perf_counter() for microsecond precision. Sorting and searching "
-        "algorithms also track exact comparison counts."
+        "Benchmarked on the full 37-station, 36-edge Baltimore MTA network using "
+        "time.perf_counter() for microsecond precision."
     )
     pdf.add_table(
         ["Algorithm", "Measured Time", "Comparisons"],
@@ -461,212 +482,132 @@ def build_report():
     )
 
     pdf.body_text(
-        "Key observations: (1) BFS outperforms DFS on this graph because it visits fewer nodes "
-        "by expanding level-by-level. (2) Dijkstra is the fastest graph algorithm because it "
-        "terminates early when the target is reached. (3) Quick Sort is faster than Merge Sort "
-        "in practice due to cache-friendly in-place operations, despite more comparisons. "
-        "(4) Binary Search uses 3 comparisons vs Linear's 20, confirming O(log n) vs O(n)."
+        "Key observations: (1) BFS visits fewer nodes than DFS by expanding level-by-level. "
+        "(2) Dijkstra terminates early when target is reached. "
+        "(3) Quick Sort beats Merge Sort in practice due to cache-friendly in-place ops. "
+        "(4) Binary Search: 3 comparisons vs Linear's 20, confirming O(log n) vs O(n)."
     )
 
-    # ==================== REAL DATA ====================
-    pdf.ln(4)
-    pdf.section_title("5. Baltimore MTA Transit Data")
+    # ==================== PAGES 7-8: SCREENSHOTS ====================
+    screenshots_page1 = [
+        ("04_dijkstra", "Dijkstra's Shortest Path"),
+        ("05_dfs_vs_bfs", "DFS vs BFS Comparison"),
+        ("03_station_table", "All 37 Stations"),
+        ("06_sorting", "Merge Sort vs Quick Sort"),
+    ]
+    screenshots_page2 = [
+        ("07_search", "Binary vs Linear Search"),
+        ("08_passenger", "Passenger Boarding (Queue)"),
+        ("09_undo", "Undo System (Stack)"),
+        ("10_dashboard", "Performance Dashboard"),
+    ]
 
-    pdf.body_text(
-        "The simulator uses real Baltimore MTA data for two transit lines. Station names, "
-        "line assignments, and approximate travel times are based on the actual MTA system map."
-    )
+    for page_screenshots, page_title in [
+        (screenshots_page1, "5. Screenshots"),
+        (screenshots_page2, "5. Screenshots (continued)"),
+    ]:
+        pdf.add_page()
+        pdf.section_title(page_title)
 
-    pdf.subsection_title("5.1 Light Rail (24 stations)")
-    pdf.body_text(
-        "Runs from Hunt Valley in the north through downtown Baltimore (Penn Station, "
-        "Camden Yards) to Cromwell/Glen Burnie in the south, with a spur to BWI Airport "
-        "branching at Linthicum. The line has 23 connections with travel times of 2-5 minutes."
-    )
+        usable_w = pdf.w - pdf.l_margin - pdf.r_margin
+        gap = 5
+        img_w = (usable_w - gap) / 2
+        # Estimate image height based on aspect ratio of terminal screenshots (~0.5)
+        img_h = img_w * 0.52
 
-    pdf.subsection_title("5.2 Metro SubwayLink (13 stations)")
-    pdf.body_text(
-        "Runs from Owings Mills in the northwest through Mondawmin and downtown to Johns "
-        "Hopkins Hospital in the east. The line has 13 connections with travel times of 2-4 minutes."
-    )
+        for idx, (filename, caption) in enumerate(page_screenshots):
+            png_path = f"{SCREENSHOTS_DIR}/{filename}.png"
+            if not os.path.isfile(png_path):
+                continue
 
-    pdf.subsection_title("5.3 Transfer Point: Lexington Market")
-    pdf.body_text(
-        "Lexington Market appears on both lines and is stored as a single node in the graph "
-        "with 4 connections (2 Light Rail neighbors: Centre Street and Convention Center; "
-        "2 Metro neighbors: State Center and Charles Center). This creates the cross-line "
-        "routing that makes Dijkstra's algorithm interesting: the shortest path from Hunt "
-        "Valley (Light Rail) to Johns Hopkins Hospital (Metro) naturally routes through "
-        "Lexington Market, demonstrating a real-world transfer."
-    )
+            col = idx % 2
+            if idx == 2:
+                # Move to second row
+                pdf.ln(2)
 
-    pdf.subsection_title("5.4 Network Statistics")
-    pdf.add_table(
-        ["Property", "Value"],
-        [
-            ["Total stations", "37"],
-            ["Total connections", "36"],
-            ["Light Rail stations", "24 (including shared)"],
-            ["Metro stations", "14 (including shared)"],
-            ["Transfer stations", "1 (Lexington Market)"],
-            ["Min travel time", "2 minutes"],
-            ["Max travel time", "5 minutes (Linthicum to BWI)"],
-            ["Longest shortest path", "37 min (Hunt Valley to JHH)"],
-        ],
-        col_widths=[80, 105],
-    )
+            row_y = pdf.get_y()
+            x = pdf.l_margin + col * (img_w + gap)
 
-    # ==================== UI ====================
-    pdf.ln(4)
-    pdf.section_title("6. User Interface & Visualization")
+            # Caption above image
+            pdf.set_xy(x, row_y)
+            pdf.set_font("Helvetica", "B", 8)
+            pdf.set_text_color(0, 51, 102)
+            pdf.cell(img_w, 4, caption, align="C")
+            pdf.set_text_color(0, 0, 0)
 
-    pdf.body_text(
-        "The simulator uses the Python Rich library for a polished terminal UI. All output "
-        "is styled with colored text, formatted tables, bordered panels, and tree views. "
-        "The Rich Live display enables real-time animated visualizations."
-    )
+            # Image
+            try:
+                pdf.image(png_path, x=x, y=row_y + 4, w=img_w, h=img_h)
+            except Exception:
+                pass
 
-    pdf.subsection_title("6.1 Interactive Menu")
-    pdf.body_text(
-        "The main menu provides 10 options covering all functionality: network viewing, "
-        "station/connection management, DFS vs BFS comparison, Dijkstra shortest path, "
-        "passenger boarding simulation, sorting comparison, searching comparison, "
-        "performance dashboard, undo, and exit. Users can select stations by ID number or "
-        "by typing the station name (case-insensitive matching)."
-    )
+            if col == 1:
+                pdf.set_y(row_y + img_h + 8)
 
-    pdf.subsection_title("6.2 Algorithm Animations")
-    pdf.body_text(
-        "DFS and BFS traversals are animated using Rich Live display. Each step shows a table "
-        "of all stations with color-coded status: white (unvisited), yellow (currently exploring), "
-        "green (on the final path), and dim gray (visited but not on path). This makes the "
-        "behavioral difference between DFS and BFS immediately visible: DFS goes deep then "
-        "backtracks, while BFS expands outward level by level. The animation runs at ~6 frames "
-        "per second, fast enough to convey behavior without dragging during a demo."
-    )
-
-    pdf.subsection_title("6.3 Passenger Boarding Animation")
-    pdf.body_text(
-        "The boarding simulation animates a progress bar that fills as passengers board one by one, "
-        "showing the FIFO queue in action. The display updates in real-time inside a bordered panel "
-        "with station info, capacity, boarded count, and remaining queue count. For example, "
-        "generating 50 passengers at Camden Yards with a train capacity of 30 boards exactly 30 "
-        "in FIFO order, leaving 20 in the queue."
-    )
-
-    pdf.subsection_title("6.4 Dijkstra Path Display")
-    pdf.body_text(
-        "Dijkstra results are shown as a visual chain with travel times on each edge: "
-        "Station A --3min--> Station B --2min--> Station C. The panel also displays total "
-        "travel time, number of stations, and number of line transfers. Cross-line routes "
-        "automatically detect when the active transit line changes, counting the transfer at "
-        "shared stations like Lexington Market."
-    )
-
-    pdf.subsection_title("6.5 Performance Dashboard")
-    pdf.body_text(
-        "The performance dashboard runs live benchmarks on all algorithms and displays two tables: "
-        "a theoretical complexity table (Big-O for time and space) and an empirical benchmarks table "
-        "with measured execution time and comparison counts. This bridges theory and practice, "
-        "showing that the measured performance matches asymptotic predictions."
-    )
-
-    # ==================== CONCLUSION ====================
-    pdf.ln(4)
-    pdf.section_title("7. Conclusion")
+    # ==================== PAGE 9: CONCLUSION ====================
+    pdf.add_page()
+    pdf.section_title("6. Conclusion")
 
     pdf.body_text(
         "This project demonstrates the practical application of core data structures and "
         "algorithms to a real-world transit network. By using actual Baltimore MTA station data "
-        "rather than abstract examples, the project grounds algorithmic concepts in a tangible "
-        "system that students and professors can relate to."
+        "(37 stations across Light Rail and Metro SubwayLink) rather than abstract examples, "
+        "the project grounds algorithmic concepts in a tangible system."
     )
 
-    pdf.body_text(
-        "Key takeaways from the implementation:"
-    )
+    pdf.body_text("Key takeaways:")
 
     points = [
-        "Graph representation: An adjacency list (dict of dicts) provides O(1) edge operations "
-        "and naturally models the sparse connectivity of a transit network.",
+        "Graph: An adjacency list (dict of dicts) provides O(1) edge operations and "
+        "naturally models the sparse connectivity of a transit network.",
 
-        "DFS vs BFS: BFS guarantees the shortest unweighted path and typically visits fewer nodes, "
-        "while DFS's deep exploration is visible in the animation. Both run in O(V+E) time.",
+        "DFS vs BFS: BFS guarantees the shortest unweighted path and typically visits fewer "
+        "nodes, while DFS explores deeply first. Both run in O(V+E) time.",
 
-        "Dijkstra's algorithm: The min-heap priority queue enables weighted shortest path in "
-        "O((V+E) log V). Cross-line routing through shared stations demonstrates real graph connectivity.",
+        "Dijkstra: The min-heap priority queue enables weighted shortest path in "
+        "O((V+E) log V). Cross-line routing through Lexington Market demonstrates real transfers.",
 
-        "Sorting: Merge Sort's guaranteed O(n log n) and stability comes at the cost of O(n) space. "
+        "Sorting: Merge Sort's guaranteed O(n log n) and stability costs O(n) space. "
         "Quick Sort's in-place operation gives better cache performance despite O(n^2) worst case.",
 
         "Searching: Binary Search's O(log n) dramatically outperforms Linear Search's O(n), "
-        "confirmed empirically with 3 vs 20 comparisons on 37 stations.",
+        "confirmed with 3 vs 20 comparisons on 37 stations.",
 
         "Queue/Stack: The deque-based passenger queue and list-based undo stack demonstrate "
         "fundamental FIFO/LIFO patterns with O(1) operations.",
     ]
 
     for i, point in enumerate(points, 1):
-        pdf.set_font("Helvetica", "B", 10)
-        pdf.cell(8, 5.5, f"{i}.")
-        pdf.set_font("Helvetica", "", 10)
-        pdf.multi_cell(0, 5.5, point)
+        pdf.set_font("Helvetica", "B", 9)
+        pdf.cell(7, 4.8, f"{i}.")
+        pdf.set_font("Helvetica", "", 9)
+        pdf.multi_cell(0, 4.8, point)
         pdf.ln(1)
 
-    pdf.ln(4)
+    pdf.ln(3)
     pdf.body_text(
-        "The Rich terminal UI elevates the project beyond a standard command-line implementation, "
-        "with animated algorithm visualizations that make abstract concepts tangible. The performance "
-        "dashboard bridges theory and practice by displaying Big-O complexity alongside measured "
-        "benchmarks, reinforcing that algorithmic analysis predicts real-world behavior."
+        "The Rich terminal UI elevates the project with animated algorithm visualizations "
+        "and a performance dashboard that bridges Big-O theory with measured benchmarks, "
+        "reinforcing that algorithmic analysis predicts real-world behavior."
     )
 
-    # ==================== SCREENSHOTS APPENDIX ====================
-    screenshots_dir = "screenshots/png"
-    demos = [
-        ("01_menu", "Main Menu"),
-        ("02_network_map", "Network Map - Real Baltimore MTA Data"),
-        ("03_station_table", "All 37 Stations"),
-        ("04_dijkstra", "Dijkstra's Shortest Path - Cross-Line Routing"),
-        ("05_dfs_vs_bfs", "DFS vs BFS Comparison"),
-        ("06_sorting", "Merge Sort vs Quick Sort"),
-        ("07_search", "Binary Search vs Linear Search"),
-        ("08_passenger", "Passenger Boarding Simulation (Queue/FIFO)"),
-        ("09_undo", "Undo System (Stack/LIFO)"),
-        ("10_dashboard", "Performance Dashboard - Theory + Benchmarks"),
-    ]
+    pdf.body_text(
+        "The simulator uses real Baltimore MTA data: 24 Light Rail stations from Hunt Valley "
+        "to Cromwell/Glen Burnie (with BWI Airport spur), 14 Metro stations from Owings Mills "
+        "to Johns Hopkins Hospital, connected at Lexington Market. All 37 stations with 36 "
+        "weighted edges and travel times of 2-5 minutes."
+    )
 
-    import os
-    if os.path.isdir(screenshots_dir):
-        pdf.add_page()
-        pdf.section_title("Appendix: Screenshots")
-        pdf.body_text(
-            "The following screenshots show actual terminal output from the simulator, "
-            "captured using Rich's SVG export and converted to PNG."
-        )
-
-        for filename, title in demos:
-            png_path = f"{screenshots_dir}/{filename}.png"
-            if not os.path.isfile(png_path):
-                continue
-
-            pdf.add_page()
-            pdf.subsection_title(title)
-            img_width = pdf.w - pdf.l_margin - pdf.r_margin
-            try:
-                pdf.image(png_path, x=pdf.l_margin, w=img_width)
-            except Exception:
-                pdf.body_text(f"[Image not available: {filename}]")
-
-    # ==================== REFERENCES ====================
-    pdf.ln(8)
+    # ==================== PAGE 10: REFERENCES ====================
+    pdf.ln(4)
     pdf.section_title("References")
 
     refs = [
-        "Cormen, T. H., Leiserson, C. E., Rivest, R. L., & Stein, C. (2022). Introduction to Algorithms (4th ed.). MIT Press.",
+        "Cormen, T. H., Leiserson, C. E., Rivest, R. L., & Stein, C. (2022). "
+        "Introduction to Algorithms (4th ed.). MIT Press.",
         "Baltimore MTA. Maryland Transit Administration System Map. mta.maryland.gov",
         "Python Software Foundation. collections.deque, heapq documentation. docs.python.org",
-        "Will McGugan. Rich: Python library for rich text in the terminal. github.com/Textualize/rich",
+        "Will McGugan. Rich: Python library for rich text in terminal. github.com/Textualize/rich",
     ]
     pdf.set_font("Helvetica", "", 9)
     for i, ref in enumerate(refs, 1):
